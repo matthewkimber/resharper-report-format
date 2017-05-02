@@ -33,11 +33,13 @@ TBD.
 ### Running Duplicate Finder
 
 `dupfinder --config={my-config-file} --output={my-output-name} {my-solution-file}`
+
 `dupfinder --config=dupfinder.config --output=report.xml MyProduct.sln`
 
 #### Compiling Duplicate Finder Report to HTML
 
 `transform -s:{xml-file} -xsl:{xsl-file} -o:{report-file}`
+
 `transform -s:report.xml -xsl:DuplicateFinder.xsl -o:report.html`
 
 ## Code Inspector
@@ -51,9 +53,11 @@ Studio.
 ### Running Code Inspector
 
 `inspectcode --output={report-file} --format=xml {solution-file}`
+
 `inspectcode --output=report.xml --format=xml MySolution.sln`
 
 ### Compiling the Code Inspection Report to HTML
 
 `transform -s:{xml-file} -xsl:{xsl-file} -o:{report-file}`
+
 `transform -s:report.xml -xsl:InspectCode.xsl -o:report.html`
