@@ -36,6 +36,8 @@
 
                     h1, h2, h3, h4, h5, h6 {
                         font-weight: normal;
+                        margin: 0;
+                        padding: 0;
                     }
 
                     .showbox {
@@ -232,6 +234,12 @@
                     #metadata {
                         background: rgba(0,0,0,0.2);
                         float: left;
+                        border-radius: 2px;
+                        padding: 10px 10px 15px 10px;
+                    }
+
+                    .metadata-title {
+                        margin-bottom: 5px;
                     }
 
                     .metadata-values {
@@ -243,6 +251,7 @@
 
                     .metadata-values label {
                         width: 100px;
+                        display: inline-block;
                     }
 
                     #statistics {
@@ -384,7 +393,10 @@
                 </script>
                 <script id="statistics-template" type="text/x-handlebars-template">
                     <h4>Statistics</h4>
-                    <p>hello stats</p>
+                    <ul>
+                        {{#each keys}}
+                        {{/each}}
+                    </ul>
                 </script>
                 <script id="project-template" type="text/x-handlebars-template">
                     <div class="project">
@@ -422,38 +434,129 @@
                                     {
                                         name: &quot;<xsl:value-of select="@Name" />&quot;,
                                         issues: [<xsl:for-each select="Issue">
-                                            {type:&quot;<xsl:value-of select="@TypeId" />&quot;,file:&quot;<xsl:value-of select="replace(@File, '\\', '\\\\')" />&quot;,line:<xsl:value-of select="my:provideDefault(@Line)" />,msg:&quot;<xsl:value-of select="replace(@Message, '[\\&quot;]', '&amp;quot;')" />&quot;}<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
+                                            {type:&quot;<xsl:value-of select="@TypeId" />&quot;,file:&quot;<xsl:value-of select="replace(@File, '\\', '\\\\')" />&quot;,sev:&quot;<xsl:value-of select="@Severity" />&quot;,line:<xsl:value-of select="my:provideDefault(@Line)" />,msg:&quot;<xsl:value-of select="replace(@Message, '[\\&quot;]', '&amp;quot;')" />&quot;}<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
                                         ]
                                     }<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
                                 ]
                             };
 
+                        /**
+                         * Gathers statistics from the report that has been generated.
+                         * @param {Object} report - The report that has been generated from ReSharper.
+                         * @returns {Object} The statistics map/hash.
+                         */
                         function gatherStatistics(report) {
-                            // return a stat object that can be bound to a template.
+                            var stats = new Map(),
+                                issueTypeOccurrenceKey = "ito";
+
+                            stats.set(issueTypeOccurrenceKey, new Map());
+
+                            // Number of projects.
+                            stats.set("totalProjects", report.projects.length);
+
+                            for (var index = 0; index &lt; report.projects.length; index++) {
+                                totalIssues += report.projects[index].issues.length;
+
+                                for (var issueIndex = 0; issueIndex &lt; report.projects[index].issues.length; issueIndex++) {
+                                    var issue = report.projects[index].issues[issueIndex],
+                                        issueTypeOccurrences = stats.get(issueTypeOccurrenceKey),
+                                        issueKey = "";
+
+
+                                    stats.set(severity, getSeverityCount(issue, report.issueTypes, stats));
+
+                                    // Register issue type occurrence.
+                                    issueKey = issuePrefix + issueType;
+                                    issueTypeOccurrences.set(issueKey, (stats.get(issueKey) || 0)++);
+                                }
+                            }
+
+                            // Determine which three issue types occur the most.
+                            var occurrences = new Array();
+
+                            issueTypeOccurrences.forEach(function(value, key, map) {
+                                occurrences.push({ type: key, count: value });
+                            });
+
+                            occurrences.sort(function (a, b) {
+                                if (a.value &lt; b.value) {
+                                    return -1;
+                                } else if (a.value &gt; b.value) {
+                                    return 1;
+                                }
+                                
+                                return 0
+                            });
+
+                            stats.set("issue-1", occurrences[0]);
+                            stats.set("issue-2", occurrences[1]);
+                            stats.set("issue-3", occurrences[2]);
+
+                            console.log("Statistics", stats);
+
+                            return stats;
+                        }
+
+                        /**
+                         * Utility function for the gatherStatistics method to increment the count
+                         * of the number of occurrence for a particular issue severity.
+                         * @param {Object} issue - The issue that is being analyzed.
+                         * @param {Object} issueTypes - The map of issue types found within the report.
+                         * @param {Object} statsMap - The map representing the various pieces of statistical information collected.
+                         * @returns {Number} The new severity count.
+                         */
+                        function getSeverityCount(issue, issueTypes, statsMap) {
+                            var severity = "";
+                            
+                            // Is the severity rating on the issue?
+                            if (issue.sev !== "") {
+                                severity = issue.sev;
+                            } else {
+                                // Grab the severity by type.
+                                severity = issueTypes.get(issue.type);
+                            }
+
+                            return (stats.get(severity) || 0)++;
                         }
 
                         function calculateResults(report, filterOptions, sortingOptions) {
                             // return organized report.
                         }
 
+                        /**
+                         * Used to populate the map/hash for issue type lookup.
+                         */
                         function populateIssueTypeMap() {
                             <xsl:for-each select="//IssueTypes/IssueType">report.issueTypes.set(&quot;<xsl:value-of select="@Id" />&quot;, {cat: &quot;<xsl:value-of select="@Category" />&quot;,catId: &quot;<xsl:value-of select="@CategoryId" />&quot;,desc: &quot;<xsl:value-of select="@Description" />&quot;,sev: &quot;<xsl:value-of select="@Severity" />&quot;,url: &quot;<xsl:value-of select="@WikiUrl" />&quot;});</xsl:for-each>
                         }
 
+                        /**
+                         * Used to update the metadata template.
+                         * @param {Object} metadata - The metadata object to be bound to the template.
+                         */
                         function updateMetadata(metadata) {
                             metadataContainer.innerHTML = metadataTmpl(metadata);
                         }
 
+                        /**
+                         * Used to update the statistics template.
+                         * @param {Object} statistics - The statistics object to be bound to the template.
+                         */
                         function updateStatistics(statistics) {
                             statisticsContainer.innerHTML = statisticsTmpl(statistics);
                         }
 
+                        /**
+                         * Used to update the report results template.
+                         * @param {Object} projects - The newly sorted and filtered projects array.
+                         */
                         function updateReportResults(projects) {
                             resultsContainer.innerHTML = reusltsTmpl(projects);
                         }
 
                         function main() {
                             updateMetadata(report.metadata);
+                            gatherStatistics(report);
                         }
 
                         main();
