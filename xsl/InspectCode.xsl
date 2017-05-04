@@ -447,6 +447,7 @@
                          */
                         function gatherStatistics(report) {
                             var stats = new Map(),
+                                totalIssues = 0;
                                 issueTypeOccurrenceKey = "ito";
 
                             stats.set(issueTypeOccurrenceKey, new Map());
@@ -460,14 +461,16 @@
                                 for (var issueIndex = 0; issueIndex &lt; report.projects[index].issues.length; issueIndex++) {
                                     var issue = report.projects[index].issues[issueIndex],
                                         issueTypeOccurrences = stats.get(issueTypeOccurrenceKey),
-                                        issueKey = "";
+                                        issueKey = "",
+                                        issueCount = 0,
+                                        severity = {};
 
-
-                                    stats.set(severity, getSeverityCount(issue, report.issueTypes, stats));
+                                    severity = getSeverityCount(issue, report.issueTypes, stats);
+                                    stats.set(severity.type, severity.count);
 
                                     // Register issue type occurrence.
-                                    issueKey = issuePrefix + issueType;
-                                    issueTypeOccurrences.set(issueKey, (stats.get(issueKey) || 0)++);
+                                    issueCount = issueTypeOccurrences.get(issue.type) + 1;
+                                    issueTypeOccurrences.set(issue.type, issueCount);
                                 }
                             }
 
@@ -479,15 +482,16 @@
                             });
 
                             occurrences.sort(function (a, b) {
-                                if (a.value &lt; b.value) {
+                                if (a.count &lt; b.count) {
                                     return -1;
-                                } else if (a.value &gt; b.value) {
+                                } else if (a.count &gt; b.count) {
                                     return 1;
                                 }
                                 
                                 return 0
                             });
 
+                            stats.set("totalissues", totalIssues);
                             stats.set("issue-1", occurrences[0]);
                             stats.set("issue-2", occurrences[1]);
                             stats.set("issue-3", occurrences[2]);
@@ -503,10 +507,11 @@
                          * @param {Object} issue - The issue that is being analyzed.
                          * @param {Object} issueTypes - The map of issue types found within the report.
                          * @param {Object} statsMap - The map representing the various pieces of statistical information collected.
-                         * @returns {Number} The new severity count.
+                         * @returns {Object} The type and count.
                          */
                         function getSeverityCount(issue, issueTypes, statsMap) {
-                            var severity = "";
+                            var severity = "",
+                                severityCount = 0;
                             
                             // Is the severity rating on the issue?
                             if (issue.sev !== "") {
@@ -516,7 +521,8 @@
                                 severity = issueTypes.get(issue.type);
                             }
 
-                            return (stats.get(severity) || 0)++;
+                            severityCount = statsMap.get(severity) + 1;
+                            return { type: severity, count: severityCount };
                         }
 
                         function calculateResults(report, filterOptions, sortingOptions) {
