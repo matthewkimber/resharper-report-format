@@ -354,18 +354,18 @@
                             <label>Severity</label>
                             <select name="severity">
                                 <option value="ALL">All</option>
-                                {{#each severity}}
-                                <option value="">{{severity}}</option>
-                                {{/each}}
+                                <option value="WARNING">Warning</option>
+                                <option value="SUGGESTION">Suggestion</option>
+                                <option value="ERROR">Error</option>
                             </select>
                         </div>
                         <div class="checkbox-list">
                             <label>Issue Types</label>
                             <ul class="checkbox-list-values">
-                                {{#each issueTypes}}
+                                {{#each issueTypes.keys()}}
                                 <li class="checkbox">
-                                    <input type="checkbox" name="issueType" value="{{issueType}}" />
-                                    <label>{{issueTypeName}}</label>
+                                    <input type="checkbox" name="issueType" value="{{key}}" />
+                                    <label>{{value}}</label>
                                 </li>
                                 {{/each}}
                             </ul>
@@ -373,12 +373,10 @@
                         <div class="checkbox-list">
                             <label>Categories</label>
                             <ul class="checkbox-list-values">
-                                {{#each categories}}
                                 <li class="checkbox">
-                                    <input type="checkbox" name="category" value="{{category}}" />
-                                    <label>{{categoryName}}</label>
+                                    <input type="checkbox" name="category" value="category" />
+                                    <label>categoryName</label>
                                 </li>
-                                {{/each}}
                             </ul>
                         </div>
                     </div>
@@ -424,21 +422,31 @@
                             appLoader = document.querySelectorAll('#container .loading')[0];
 
                         var report = document.report = {
-                                metadata: {
-                                    version: &quot;<xsl:value-of select="//Report/@ToolsVersion" />&quot;,
-                                    solution: &quot;<xsl:value-of select="replace(//Report/Information/Solution, '\\', '\\\\')" />&quot;,
-                                    scope: &quot;<xsl:value-of select="//Report/Information/InspectionScope/Element" />&quot;
-                                },
-                                issueTypes: new Map(),
-                                projects: [<xsl:for-each select="//Issues/Project">
-                                    {
-                                        name: &quot;<xsl:value-of select="@Name" />&quot;,
-                                        issues: [<xsl:for-each select="Issue">
-                                            {type:&quot;<xsl:value-of select="@TypeId" />&quot;,file:&quot;<xsl:value-of select="replace(@File, '\\', '\\\\')" />&quot;,sev:&quot;<xsl:value-of select="@Severity" />&quot;,line:<xsl:value-of select="my:provideDefault(@Line)" />,msg:&quot;<xsl:value-of select="replace(@Message, '[\\&quot;]', '&amp;quot;')" />&quot;}<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
-                                        ]
-                                    }<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
-                                ]
-                            };
+                            metadata: {
+                                version: &quot;<xsl:value-of select="//Report/@ToolsVersion" />&quot;,
+                                solution: &quot;<xsl:value-of select="replace(//Report/Information/Solution, '\\', '\\\\')" />&quot;,
+                                scope: &quot;<xsl:value-of select="//Report/Information/InspectionScope/Element" />&quot;
+                            },
+                            issueTypes: new Map(),
+                            projects: [<xsl:for-each select="//Issues/Project">
+                                {
+                                    name: &quot;<xsl:value-of select="@Name" />&quot;,
+                                    issues: [<xsl:for-each select="Issue">
+                                        {type:&quot;<xsl:value-of select="@TypeId" />&quot;,file:&quot;<xsl:value-of select="replace(@File, '\\', '\\\\')" />&quot;,sev:&quot;<xsl:value-of select="@Severity" />&quot;,line:<xsl:value-of select="my:provideDefault(@Line)" />,msg:&quot;<xsl:value-of select="replace(@Message, '[\\&quot;]', '&amp;quot;')" />&quot;}<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
+                                    ]
+                                }<xsl:if test="not(position()=last())">,</xsl:if></xsl:for-each>
+                            ]
+                        };
+                        
+                        var filterViewModel = {
+                            categories: new Array(),
+                            issueTypes: new Array(),
+                            severities: [{"ALL", "All"}, {"SUGGESTION", "Suggestions"}, {"WARNING", "Warnings"}, {"ERROR", "Errors"}]
+                        };
+
+                        // ***************************************************************
+                        // ** Populate filter view model with categories and issue types.
+                        // ***************************************************************
 
                         /**
                          * Gathers statistics from the report that has been generated.
@@ -448,7 +456,7 @@
                         function gatherStatistics(report) {
                             var stats = new Map(),
                                 totalIssues = 0;
-                                issueTypeOccurrenceKey = "ito";
+                                issueTypeOccurrenceKey = "issueTypeOccurrence";
 
                             stats.set(issueTypeOccurrenceKey, new Map());
 
@@ -465,12 +473,10 @@
                                         issueCount = 0,
                                         severity = {};
 
-                                    severity = getSeverityCount(issue, report.issueTypes, stats);
-                                    stats.set(severity.type, severity.count);
+                                    incrementSeverityCount(issue, report.issueTypes, stats);
 
                                     // Register issue type occurrence.
-                                    issueCount = issueTypeOccurrences.get(issue.type) + 1;
-                                    issueTypeOccurrences.set(issue.type, issueCount);
+                                    incrementCount(issueTypeOccurrences, issue.type);
                                 }
                             }
 
@@ -483,22 +489,35 @@
 
                             occurrences.sort(function (a, b) {
                                 if (a.count &lt; b.count) {
-                                    return -1;
-                                } else if (a.count &gt; b.count) {
                                     return 1;
+                                } else if (a.count &gt; b.count) {
+                                    return -1;
                                 }
                                 
                                 return 0
                             });
 
-                            stats.set("totalissues", totalIssues);
-                            stats.set("issue-1", occurrences[0]);
-                            stats.set("issue-2", occurrences[1]);
-                            stats.set("issue-3", occurrences[2]);
-
+                            stats.set(issueTypeOccurrenceKey, occurrences);
+                            stats.set("totalIssues", totalIssues);
+                            
                             console.log("Statistics", stats);
 
                             return stats;
+                        }
+
+                        /**
+                         * Utility function to safely increment a count stored in a map.
+                         * @param {Object} map - The map to use when looking up and incrementing values.
+                         * @param {String} key - The key to manipulate.
+                         */
+                        function incrementCount(map, key) {
+                            var value = Number(map.get(key));
+
+                            if (!Number.isNaN(value)) {
+                                map.set(key, value + 1);
+                            } else {
+                                map.set(key, 1);
+                            }
                         }
 
                         /**
@@ -507,9 +526,8 @@
                          * @param {Object} issue - The issue that is being analyzed.
                          * @param {Object} issueTypes - The map of issue types found within the report.
                          * @param {Object} statsMap - The map representing the various pieces of statistical information collected.
-                         * @returns {Object} The type and count.
                          */
-                        function getSeverityCount(issue, issueTypes, statsMap) {
+                        function incrementSeverityCount(issue, issueTypes, statsMap) {
                             var severity = "",
                                 severityCount = 0;
                             
@@ -518,11 +536,11 @@
                                 severity = issue.sev;
                             } else {
                                 // Grab the severity by type.
-                                severity = issueTypes.get(issue.type);
+                                severity = issueTypes.get(issue.type).sev;
+                                issue.sev = severity;
                             }
 
-                            severityCount = statsMap.get(severity) + 1;
-                            return { type: severity, count: severityCount };
+                            incrementCount(statsMap, severity.toLowerCase() + "s");
                         }
 
                         function calculateResults(report, filterOptions, sortingOptions) {
@@ -544,6 +562,10 @@
                             metadataContainer.innerHTML = metadataTmpl(metadata);
                         }
 
+                        function updateControls(report) {
+                            controlsContainer.innerHTML = filterTmpl(report) + controlsContainer.innerHTML;
+                        }
+
                         /**
                          * Used to update the statistics template.
                          * @param {Object} statistics - The statistics object to be bound to the template.
@@ -561,8 +583,14 @@
                         }
 
                         function main() {
+                            populateIssueTypeMap();
+
                             updateMetadata(report.metadata);
+                            updateControls(report);
+
                             gatherStatistics(report);
+
+                            console.log("Report", report);
                         }
 
                         main();
